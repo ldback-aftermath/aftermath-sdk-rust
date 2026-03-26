@@ -87,6 +87,8 @@ module perpetuals::errors {
     const InvalidExpirationTimestamp: u64 = 23;
     /// Stop order gas cost provided is not enough
     const NotEnoughGasForStopOrder: u64 = 24;
+    /// TWAP order gas cost provided is not enough
+    const NotEnoughGasForTWAPOrder: u64 = 25;
     /// Invalid account trying to perform an action on a StopOrderTicket
     const InvalidAccountForStopOrder: u64 = 26;
     /// Invalid executor trying to execute the StopOrderTicket
@@ -126,6 +128,26 @@ module perpetuals::errors {
     const NoOpenInterestToSocializeBadDebt: u64 = 40;
     /// Bad debt amount is greater than max allowed threshold
     const BadDebtAboveThreshold: u64 = 41;
+    /// TWAP order is past its allowed start or end execution timestamp
+    const TWAPOrderTicketExpired: u64 = 43;
+    /// Amount executed in one TWAP execution is outside the allowed range
+    const TWAPOrderAmountUncertaintyViolated: u64 = 44;
+    /// Current timestamp is too early for the next TWAP execution
+    const TWAPOrderExecutionGapViolated: u64 = 45;
+    /// The TWAP order has already been fully executed
+    const TWAPOrderFullyExecuted: u64 = 46;
+    /// TWAP order is being executed after the retry deadline has passed
+    const TWAPOrderExecutedAfterRetryTime: u64 = 47;
+    /// TWAP order is not in a terminal state required for finalization
+    const TWAPOrderCannotBeFinalized: u64 = 48;
+    /// Invalid account trying to perform an action on a TWAPOrderTicket
+    const TWAPOrderInvalidAccount: u64 = 49;
+    /// Invalid executor trying to perform an action on a TWAPOrderTicket
+    const TWAPOrderInvalidExecutor: u64 = 50;
+    /// TWAP order is being edited while it is being executed
+    const TWAPOrderCannotEditExecutingOrder: u64 = 51;
+    /// Invalid split between execution gas pool and finalization gas
+    const TWAPOrderInvalidGasSplit: u64 = 52;
 
     // Market ---------------------------------------------------------------
 

@@ -24,6 +24,7 @@ pub mod stop_order_helpers;
 pub use self::market::{MarketParams, MarketState};
 pub use self::orderbook::Order;
 pub use self::position::Position;
+pub use self::twap_orders_details::TWAPOrderDetails;
 
 // Convenient aliases since these types will never exist onchain with a type argument other than an
 // OTW.
@@ -35,6 +36,8 @@ pub type Account = self::account::Account<Otw>;
 pub type AccountTypeTag = self::account::AccountTypeTag<Otw>;
 pub type StopOrderTicket = self::stop_orders::StopOrderTicket<Otw>;
 pub type StopOrderTicketTypetag = self::stop_orders::StopOrderTicketTypeTag<Otw>;
+pub type TWAPOrderTicket = self::twap_orders::TWAPOrderTicket<Otw>;
+pub type TWAPOrderTicketTypetag = self::twap_orders::TWAPOrderTicketTypeTag<Otw>;
 pub type ClearingHouse = self::clearing_house::ClearingHouse<Otw>;
 pub type ClearingHouseTypeTag = self::clearing_house::ClearingHouseTypeTag<Otw>;
 pub type Vault = self::clearing_house::Vault<Otw>;
@@ -273,6 +276,77 @@ sui_pkg_sdk!(perpetuals {
             /// - reduce_only: bool
             /// - salt: vector<u8>
             encrypted_details: vector<u8>
+        }
+    }
+
+    module twap_orders_details {
+        /// The details to be hashed for the `encrypted_details` argument of
+        /// `create_twap_order_ticket`.
+        struct TWAPOrderDetails has drop {
+            clearing_house_id: ID,
+            /// Exclusive deadline for the first valid TWAP execution attempt.
+            start_expire_timestamp: Option<u64>,
+            /// Exclusive deadline for any TWAP execution attempt.
+            end_expire_timestamp: Option<u64>,
+            /// Expected time between two consecutive valid TWAP execution attempts.
+            execution_gap_ms: u64,
+            /// Maximum amount by which a valid attempt may happen earlier than
+            /// `execution_gap_ms`.
+            execution_time_uncertainty_ms: u64,
+            /// Target amount for one TWAP execution before uncertainty and remainder
+            /// adjustments.
+            one_execution_amount: u64,
+            /// Maximum additional delay after the nominal execution gap before the TWAP
+            /// becomes spoiled.
+            time_for_retry_ms: u64,
+            /// Maximum deviation allowed between the caller-requested amount and
+            /// `one_execution_amount`.
+            amount_uncertainty: u64,
+            /// Maximum allowed amount for one execution after backlog adjustments.
+            max_one_execution_amount: u64,
+            side: bool,
+            size: u64,
+            max_slippage_bps: u64,
+            reduce_only: bool,
+            salt: vector<u8>
+        }
+    }
+
+    module twap_orders {
+        /// Object that allows off-chain executors to process a TWAP order in multiple
+        /// executions until it is finalized or canceled.
+        struct TWAPOrderTicket<!phantom T> has key, store {
+            id: UID,
+            /// Addresses allowed to execute the order on behalf of the user.
+            executors: vector<address>,
+            /// Address that funded the ticket gas and must receive unearned execution gas
+            /// back.
+            refund_address: address,
+            /// Gas coin that must be provided by the user to cover the whole TWAP
+            /// lifecycle.
+            gas: Balance<SUI>,
+            /// Portion of `gas` reserved for chunk executions.
+            execution_gas_budget: u64,
+            /// Portion of `execution_gas_budget` already paid out.
+            paid_execution_gas: u64,
+            /// Portion of `gas` reserved for delete/finalize.
+            finalization_gas: u64,
+            /// User account id.
+            account_id: u64,
+            /// Hash of the off-chain order details. See `TWAPOrderDetails`.
+            encrypted_details: vector<u8>,
+
+            /// Amount of the order that has already been executed.
+            processed_amount: u64,
+            /// Amount of the TWAP target that has already been scheduled into
+            /// sub-orders.
+            scheduled_amount: u64,
+            /// Timestamp of the last valid execution attempt.
+            last_attempt_timestamp_ms: u64,
+            /// Timestamp anchoring spoilage checks.
+            retry_anchor_timestamp_ms: u64,
+            /// Timestamp of the last successful fill.
+            last_execution_timestamp_ms: u64,
         }
     }
 
@@ -602,6 +676,63 @@ sui_pkg_sdk!(perpetuals {
             executors: vector<address>
         }
 
+        struct CreatedTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            executors: vector<address>,
+            gas: u64,
+            encrypted_details: vector<u8>
+        }
+
+        struct ProcessedTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            execution_amount: u64,
+            filled_amount: u64,
+            remainder: u64,
+            processed_amount: u64,
+            last_execution_timestamp_ms: u64,
+        }
+
+        struct FinalizedTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            executor: address,
+            executed: bool,
+            deallocated_collateral: u64,
+        }
+
+        struct CanceledTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            sender: address,
+            deallocated_collateral: u64,
+        }
+
+        struct ExecutedTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            executor: address
+        }
+
+        struct DeletedTWAPOrderTicket<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            executor: address
+        }
+
+        struct EditedTWAPOrderTicketDetails<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            encrypted_details: vector<u8>
+        }
+
+        struct EditedTWAPOrderTicketExecutors<!phantom T> has copy, drop {
+            ticket_id: ID,
+            account_id: u64,
+            executors: vector<address>
+        }
+
         struct CreatedMarginRatiosProposal has copy, drop {
             ch_id: ID,
             margin_ratio_initial: IFixed,
@@ -743,6 +874,10 @@ sui_pkg_sdk!(perpetuals {
 
         struct UpdatedStopOrderMistCost has copy, drop {
             stop_order_mist_cost: u64
+        }
+
+        struct UpdatedTWAPOrderMistCost has copy, drop {
+            twap_order_mist_cost: u64
         }
 
         struct DonatedToInsuranceFund has copy, drop {
@@ -1138,6 +1273,7 @@ sui_pkg_sdk!(perpetuals {
         /// Config that stores useful info for the protocol
         struct Config has store {
             stop_order_mist_cost: u64,
+            twap_order_mist_cost: u64,
         }
     }
 });
