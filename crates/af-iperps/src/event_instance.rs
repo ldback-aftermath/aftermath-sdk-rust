@@ -134,7 +134,6 @@ event_instance!(EventInstance {
     UpdatedSpreadTwap,
     UpdatedSpreadTwapParameters,
     UpdatedStopOrderMistCost,
-    UpdatedTWAPOrderMistCost,
     WithdrewCollateral<Otw>,
     WithdrewFees,
     WithdrewFromIntegratorVault,

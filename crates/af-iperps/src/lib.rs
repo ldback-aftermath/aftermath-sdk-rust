@@ -876,10 +876,6 @@ sui_pkg_sdk!(perpetuals {
             stop_order_mist_cost: u64
         }
 
-        struct UpdatedTWAPOrderMistCost has copy, drop {
-            twap_order_mist_cost: u64
-        }
-
         struct DonatedToInsuranceFund has copy, drop {
             sender: address,
             ch_id: ID,
