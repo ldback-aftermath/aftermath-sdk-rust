@@ -1273,7 +1273,6 @@ sui_pkg_sdk!(perpetuals {
         /// Config that stores useful info for the protocol
         struct Config has store {
             stop_order_mist_cost: u64,
-            twap_order_mist_cost: u64,
         }
     }
 });
